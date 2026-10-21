@@ -39,6 +39,13 @@ el menú de aplicaciones. No toca el sistema base.
 Abre «Capturadora», elige tu dispositivo de video, la calidad y el audio en la barra
 superior (aparece al mover el ratón). Si algo se queda trabado, pulsa el botón de reconectar.
 
+## Compatibilidad con el Mezclador (opcional)
+
+La Capturadora funciona sola, no necesita nada más. Si tienes instalado el
+[Mezclador](https://github.com/cecilio120/mezclador), conecta su audio directo al canal
+Extra, así no se mueve de canal al abrir y se evita un chasquido. Sin el Mezclador, el audio
+sale por tu salida predeterminada y, para suavizar el arranque, se silencia unos 3 segundos.
+
 ## Desinstalar
 
 ```bash
