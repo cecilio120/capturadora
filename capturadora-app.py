@@ -745,14 +745,16 @@ class Window(Gtk.ApplicationWindow):
         if not dev:
             return
         if getattr(dev, "pa_name", None):
-            out = host_pactl("load-module", "module-loopback", f"source={dev.pa_name}",
+            sinks = host_pactl("list", "short", "sinks") or ""
+            destino = ["sink=mezclador_aux"] if "mezclador_aux" in sinks else []   # canal Extra del Mezclador, sin moverlo después
+            out = host_pactl("load-module", "module-loopback", f"source={dev.pa_name}", *destino,
                              f"latency_msec={int(self.cfg.get('audio_latency', 15))}", "source_dont_move=true",
                              f"sink_input_properties=application.name={LOOP_NAME}",
                              f"source_output_properties=application.name={LOOP_NAME}")
             self.loop_mod = (out or "").strip() or None
             if not self.loop_mod:
                 print("no pude crear la conexión de audio")
-            GLib.timeout_add(400, lambda: (self.apply_volume(), False)[1])
+            self._arranque_silencio()
             return
         pipe = Gst.Pipeline.new("audio")
         src = dev.make()
@@ -801,6 +803,31 @@ class Window(Gtk.ApplicationWindow):
         self.apipe = pipe
         self.apply_volume()
         pipe.set_state(Gst.State.PLAYING)
+
+    def _arranque_silencio(self):
+        """Silencia la conexión de audio nada más crearla (evita el ruido de arranque)
+        y la libera pasados ~3 s."""
+        mod = self.loop_mod
+        t = {"n": 0}
+
+        def mutear():
+            if self.loop_mod != mod:
+                return False
+            idx = pa_loop_index()
+            if idx is not None:
+                host_pactl("set-sink-input-mute", idx, "1")
+                return False
+            t["n"] += 1
+            return t["n"] < 60
+
+        def liberar():
+            if self.loop_mod == mod:
+                self.apply_volume()
+            return False
+
+        mutear()
+        GLib.timeout_add(40, mutear)
+        GLib.timeout_add(3000, liberar)
 
     def apply_volume(self):
         if getattr(self, "loop_mod", None):
