@@ -435,6 +435,7 @@ class Window(Gtk.ApplicationWindow):
         self.update_volume_ui()
         self.update_fill_btn()
         self.connect("close-request", self.on_close)
+        self.connect("notify::fullscreened", self.on_fullscreen_changed)
         GLib.timeout_add(1000, self.tick_fps)
         self.over_bar = False
         barmotion = Gtk.EventControllerMotion()
@@ -897,7 +898,29 @@ class Window(Gtk.ApplicationWindow):
             return True
         return False
 
+    def on_fullscreen_changed(self, *_):
+        """En pantalla completa: sin controles ni indicador, y sin suspender la pantalla
+        (un mando no cuenta como actividad para el sistema)."""
+        fs = self.is_fullscreen()
+        app = self.get_application()
+        if fs and not getattr(self, "inhibit_cookie", 0) and app:
+            self.inhibit_cookie = app.inhibit(
+                self, Gtk.ApplicationInhibitFlags.IDLE | Gtk.ApplicationInhibitFlags.SUSPEND,
+                "Mostrando la capturadora en pantalla completa")
+        elif not fs and getattr(self, "inhibit_cookie", 0) and app:
+            app.uninhibit(self.inhibit_cookie)
+            self.inhibit_cookie = 0
+        self.wake()
+
     def wake(self):
+        if self.is_fullscreen():
+            self.revealer.set_reveal_child(False)
+            self.badge.set_opacity(0)
+            self.set_cursor(None)
+            if self.hide_id:
+                GLib.source_remove(self.hide_id)
+            self.hide_id = GLib.timeout_add(2500, self.go_idle)
+            return
         self.revealer.set_reveal_child(True)
         self.badge.set_opacity(1)
         self.set_cursor(None)
@@ -907,7 +930,7 @@ class Window(Gtk.ApplicationWindow):
 
     def go_idle(self):
         self.hide_id = None
-        if self.vpipe and not self.over_bar:
+        if self.vpipe and (self.is_fullscreen() or not self.over_bar):
             self.revealer.set_reveal_child(False)
             self.badge.set_opacity(0)
             self.set_cursor(Gdk.Cursor.new_from_name("none", None))
